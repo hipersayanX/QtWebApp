@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/QtWebApp">
+        <file>share/qml/main.qml</file>
+        <file>share/html/index.html</file>
+        <file>share/js/socketsetup.js</file>
+    </qresource>
+</RCC>
