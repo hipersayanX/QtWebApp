@@ -14,6 +14,11 @@
  * along with Webcamoid. If not, see <http://www.gnu.org/licenses/>.
  */
 
+function qsTr(sourceText, disambiguation="", n=-1, callback=null)
+{
+    qsTrInternal("socketsetup", sourceText, disambiguation, n, callback)
+}
+
 window.onload = function() {
     var socket = new WebSocket("%%SOCKETSERVER_URL%%");
 
@@ -23,15 +28,18 @@ window.onload = function() {
                     window.channel.objects.WebServer.url
             document.getElementById("socketServerUrl").innerHTML =
                     window.channel.objects.SocketServer.url
-        });
+            qsTr("Click Me!", function(str) {
+                document.getElementById("pushButton").innerHTML = str
+            })
+        })
     }
 
     socket.onclose = function() {
-    };
+    }
 
     socket.onmessage = function(event) {
-    };
+    }
 
     socket.onerror = function(error) {
-    };
+    }
 }

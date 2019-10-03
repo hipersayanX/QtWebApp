@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/QtWebApp">
+        <file>share/ts/es.qm</file>
+        <file>share/ts/fr.qm</file>
+    </qresource>
+</RCC>

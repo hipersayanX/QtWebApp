@@ -16,8 +16,10 @@
 
 #include <QDateTime>
 #include <QFile>
+#include <QFileInfo>
 #include <QMimeDatabase>
 #include <QTcpSocket>
+#include <QTranslator>
 #include <QWebChannel>
 
 #include "webserver.h"
@@ -27,15 +29,17 @@ class WebServerPrivate
 {
     public:
         SocketServer m_socketServer;
+        QTranslator *m_translator {nullptr};
 
         static QString currentTime();
         inline void handleGet(QTcpSocket *socket, const QString &path);
 };
 
-WebServer::WebServer(QObject *parent):
+WebServer::WebServer(QTranslator *translator, QObject *parent):
     QTcpServer(parent)
 {
     this->d = new WebServerPrivate;
+    this->d->m_translator = translator;
     QObject::connect(this,
                      &QTcpServer::newConnection,
                      this,
@@ -45,7 +49,7 @@ WebServer::WebServer(QObject *parent):
     this->listen();
 
     qDebug() << "Web server URL:" << this->url();
-    qDebug() << "Socket server URL:" << this->url();
+    qDebug() << "Socket server URL:" << this->d->m_socketServer.url();
 }
 
 WebServer::~WebServer()
@@ -58,6 +62,32 @@ QString WebServer::url() const
     return QString("http://%1:%2")
             .arg(this->serverAddress().toString())
             .arg(this->serverPort());
+}
+
+QString WebServer::tr(const QString &context,
+                      const QString &sourceText,
+                      const QString &disambiguation,
+                      int n)
+{
+    if (!this->d->m_translator)
+        return sourceText;
+
+    QString translated;
+
+    if (disambiguation.isEmpty())
+        translated =
+                this->d->m_translator->translate(context.toStdString().c_str(),
+                                                 sourceText.toStdString().c_str(),
+                                                 nullptr,
+                                                 n);
+
+    translated =
+            this->d->m_translator->translate(context.toStdString().c_str(),
+                                             sourceText.toStdString().c_str(),
+                                             disambiguation.toStdString().c_str(),
+                                             n);
+
+    return translated;
 }
 
 void WebServer::handleConnection()
@@ -161,7 +191,15 @@ void WebServerPrivate::handleGet(QTcpSocket *socket, const QString &path)
     if (filePath == "/index.html")
         filePath = "/QtWebApp/share/html/index.html";
 
+    // Only allow to access files in the resource system.
     filePath = ":" + filePath;
+
+    if (QFileInfo(filePath).isDir()) {
+        if (!filePath.endsWith('/'))
+            filePath += '/';
+
+        filePath += "index.html";
+    }
 
     if (QFile::exists(filePath)) {
         QFile file;

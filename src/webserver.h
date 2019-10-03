@@ -20,6 +20,7 @@
 #include <QTcpServer>
 
 class WebServerPrivate;
+class QTranslator;
 
 class WebServer: public QTcpServer
 {
@@ -29,10 +30,14 @@ class WebServer: public QTcpServer
                CONSTANT)
 
     public:
-        WebServer(QObject *parent=nullptr);
+        WebServer(QTranslator *translator, QObject *parent=nullptr);
         ~WebServer();
 
         Q_INVOKABLE QString url() const;
+        Q_INVOKABLE QString tr(const QString &context,
+                               const QString &sourceText,
+                               const QString &disambiguation={},
+                               int n=-1);
 
     private:
         WebServerPrivate *d;

@@ -38,9 +38,14 @@ int main(int argc, char **argv)
 {
     QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
     QApplication app(argc, argv);
-    WebServer server;
 
-    FrontEnd frontEnd = FrontEnd::Qml;
+    // Install translations.
+    QTranslator translator;
+    translator.load(QLocale::system().name(), ":/QtWebApp/share/ts");
+    QApplication::installTranslator(&translator);
+
+    WebServer server(&translator);
+    FrontEnd frontEnd = FrontEnd::WebApp;
 
 #ifdef QT_WEBENGINE_LIB
     QtWebEngine::initialize();

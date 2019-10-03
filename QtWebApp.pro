@@ -66,3 +66,49 @@ contains(ANDROID_TARGET_ARCH,x86_64) {
 
 FORMS += \
     share/ui/mainwindow.ui
+
+# Configure translations
+TRANSLATIONS_PRI = $${PWD}/translations.pri
+
+exists(translations.qrc) {
+    TRANSLATIONS = $$files(share/ts/*.ts)
+    RESOURCES += translations.qrc
+}
+
+isEmpty(QMAKE_LRELEASE) {
+    LRELEASE_FNAME = lrelease
+
+    exists($$[QT_INSTALL_LIBEXECS]/$${LRELEASE_FNAME}*) {
+        QMAKE_LRELEASE = $$[QT_INSTALL_LIBEXECS]/$${LRELEASE_FNAME}
+    } else {
+        QMAKE_LRELEASE = $$[QT_INSTALL_BINS]/$${LRELEASE_FNAME}
+    }
+}
+
+isEmpty(QMAKE_LUPDATE) {
+    LUPDATE_FNAME = lupdate
+
+    exists($$[QT_INSTALL_LIBEXECS]/$${LUPDATE_FNAME}*) {
+        QMAKE_LUPDATE = $$[QT_INSTALL_LIBEXECS]/$${LUPDATE_FNAME}
+    } else {
+        QMAKE_LUPDATE = $$[QT_INSTALL_BINS]/$${LUPDATE_FNAME}
+    }
+}
+
+# Update translations.
+isEmpty(NOLUPDATE): !isEmpty(TRANSLATIONS_PRI): CONFIG(debug, debug|release) {
+    updatetr.commands = $$QMAKE_LUPDATE -no-obsolete $$TRANSLATIONS_PRI
+    QMAKE_EXTRA_TARGETS += updatetr
+    PRE_TARGETDEPS += updatetr
+}
+
+# Compile translations files.
+isEmpty(NOLRELEASE): !isEmpty(TRANSLATIONS): CONFIG(debug, debug|release) {
+    compiletr.input = TRANSLATIONS
+    compiletr.output = ${QMAKE_FILE_PATH}/${QMAKE_FILE_BASE}.qm
+    compiletr.commands = $$QMAKE_LRELEASE -removeidentical -compress ${QMAKE_FILE_IN} -qm ${QMAKE_FILE_PATH}/${QMAKE_FILE_BASE}.qm
+    compiletr.clean = dummy_file
+    compiletr.CONFIG += no_link
+    QMAKE_EXTRA_COMPILERS += compiletr
+    PRE_TARGETDEPS += compiler_compiletr_make_all
+}
