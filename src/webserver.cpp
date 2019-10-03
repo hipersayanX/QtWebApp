@@ -20,25 +20,37 @@
 #include <QMimeDatabase>
 #include <QTcpSocket>
 #include <QTranslator>
+#include <QUrl>
 #include <QWebChannel>
 
 #include "webserver.h"
 #include "socketserver.h"
 
+struct Message
+{
+    QString method;
+    QString path;
+    QString protocol;
+    QMap<QString, QString> headers;
+    QByteArray data;
+};
+
 class WebServerPrivate
 {
     public:
+        WebServer *self {nullptr};
         SocketServer m_socketServer;
         QTranslator *m_translator {nullptr};
 
+        explicit WebServerPrivate(WebServer *self);
         static QString currentTime();
-        inline void handleGet(QTcpSocket *socket, const QString &path);
+        inline void handleMessage(QTcpSocket *socket, const Message &message);
 };
 
 WebServer::WebServer(QTranslator *translator, QObject *parent):
     QTcpServer(parent)
 {
-    this->d = new WebServerPrivate;
+    this->d = new WebServerPrivate(this);
     this->d->m_translator = translator;
     QObject::connect(this,
                      &QTcpServer::newConnection,
@@ -106,38 +118,45 @@ void WebServer::handleConnection()
 void WebServer::dataReady()
 {
     auto socket = reinterpret_cast<QTcpSocket *>(sender());
-    auto request = QString(socket->readAll()).split("\r\n");
-    QString method;
-    QString path;
-    QString protocol;
-    QMap<QString, QString> headers;
+    Message message;
 
-    for (auto &line: request) {
-        auto i = line.trimmed().indexOf(':');
+    for (int i = 0; !socket->atEnd(); i++) {
+        auto line = socket->readLine().trimmed();
 
-        if (i < 0) {
-            if (!line.isEmpty()) {
-                auto parts = line.split(' ');
-                method = parts.value(0);
-                path = parts.value(1);
-                protocol = parts.value(2);
-            }
+        if (line.isEmpty()) {
+            break;
+        } else if (i == 0) {
+            auto parts = line.split(' ');
+            message.method = parts.value(0);
+            message.path = parts.value(1);
+            message.protocol = parts.value(2);
         } else {
-            auto key = line.left(i).trimmed();
-            auto value = line.right(line.size() - i - 1).trimmed();
-            headers[key] = value;
+            auto index = line.indexOf(':');
+            auto key = line.left(index).trimmed();
+            auto value = line.right(line.size() - index - 1).trimmed();
+            message.headers[key] = value;
         }
     }
 
-    qDebug() << method << path << protocol;
-    qDebug() << headers;
+    auto dataSize = message.headers.value("Content-Length").toLongLong();
+
+    if (dataSize > 0)
+        message.data = socket->read(dataSize);
+
+    qDebug() << message.method << message.path << message.protocol;
+    qDebug() << message.headers;
+    qDebug() << message.data;
     qDebug();
 
-    if (method == "GET")
-        this->d->handleGet(socket, path);
-
+    this->d->handleMessage(socket, message);
     socket->disconnectFromHost();
     socket->waitForDisconnected();
+}
+
+WebServerPrivate::WebServerPrivate(WebServer *self):
+    self(self)
+{
+
 }
 
 QString WebServerPrivate::currentTime()
@@ -181,29 +200,38 @@ QString WebServerPrivate::currentTime()
             .arg(dateTime.toString("HH:mm:ss"));
 }
 
-void WebServerPrivate::handleGet(QTcpSocket *socket, const QString &path)
+void WebServerPrivate::handleMessage(QTcpSocket *socket, const Message &message)
 {
-    QString filePath = path;
+    static const QMap<QString, QString> redirect {
+        {"/"          , "/QtWebApp/share/html/index.html"},
+        {"/index.html", "/QtWebApp/share/html/index.html"},
+    };
 
-    if (filePath == "/")
-        filePath = "/index.html";
+    QUrl url;
+    url.setScheme("http");
+    url.setHost(self->serverAddress().toString());
+    url.setPort(self->serverPort());
+    url.setPath(redirect.value(message.path, message.path));
 
-    if (filePath == "/index.html")
-        filePath = "/QtWebApp/share/html/index.html";
+    if (QFileInfo(':' + url.path()).isDir()) {
+        if (!url.path().endsWith('/'))
+            url.setPath(url.path() + '/');
 
-    // Only allow to access files in the resource system.
-    filePath = ":" + filePath;
-
-    if (QFileInfo(filePath).isDir()) {
-        if (!filePath.endsWith('/'))
-            filePath += '/';
-
-        filePath += "index.html";
+        url.setPath(url.path() + "index.html");
     }
 
-    if (QFile::exists(filePath)) {
+    auto contentType = message.headers.value("Content-Type");
+
+    if (message.method == "POST"
+        && contentType == "application/x-www-form-urlencoded")
+        url.setQuery(message.data);
+
+    // Only allow to access files in the resource system.
+    auto path = ":" + url.path();
+
+    if (QFile::exists(path)) {
         QFile file;
-        file.setFileName(filePath);
+        file.setFileName(path);
 
         if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             auto mimeType = QMimeDatabase()
@@ -236,7 +264,10 @@ void WebServerPrivate::handleGet(QTcpSocket *socket, const QString &path)
                           + WebServerPrivate::currentTime().toUtf8()
                           + "\r\n");
             socket->write("\r\n");
-            socket->write(data);
+
+            if (message.method != "HEAD")
+                socket->write(data);
+
             file.close();
         } else {
             socket->write("HTTP/1.0 404 FILE NOT FOUND\r\n");

@@ -45,7 +45,7 @@ int main(int argc, char **argv)
     QApplication::installTranslator(&translator);
 
     WebServer server(&translator);
-    FrontEnd frontEnd = FrontEnd::WebApp;
+    FrontEnd frontEnd = FrontEnd::Widgets;
 
 #ifdef QT_WEBENGINE_LIB
     QtWebEngine::initialize();
