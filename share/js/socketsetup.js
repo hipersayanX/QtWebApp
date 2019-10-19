@@ -20,7 +20,9 @@ function qsTr(sourceText, disambiguation="", n=-1, callback=null)
 }
 
 window.onload = function() {
-    var socket = new WebSocket("%%SOCKETSERVER_URL%%");
+    window.canvas = document.getElementById('canvas');
+    window.canvasCtx = window.canvas.getContext('2d');
+    let socket = new WebSocket("%%SOCKETSERVER_URL%%");
 
     socket.onopen = function() {
         window.channel = new QWebChannel(socket, function(channel) {
@@ -31,6 +33,29 @@ window.onload = function() {
             qsTr("Click Me!", function(str) {
                 document.getElementById("pushButton").innerHTML = str
             })
+
+            window.setInterval(function () {
+                let width = window.canvas.width
+                let height = window.canvas.height
+
+                window.channel.objects.WebServer.readFrame(width,
+                                                           height,
+                                                           function(data) {
+                    let img = window.canvasCtx.createImageData(width, height)
+                    data = window.atob(data)
+
+                    for (let i = 0 ; i < data.length; i++)
+                       img.data[i] = data[i].charCodeAt(0)
+
+                    window.canvasCtx.putImageData(img,
+                                                  0,
+                                                  0,
+                                                  0,
+                                                  0,
+                                                  width,
+                                                  height)
+                })
+            }, 33)
         })
     }
 

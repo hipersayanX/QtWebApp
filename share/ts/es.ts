@@ -20,7 +20,7 @@
 <context>
     <name>socketsetup</name>
     <message>
-        <location filename="../js/socketsetup.js" line="31"/>
+        <location filename="../js/socketsetup.js" line="33"/>
         <source>Click Me!</source>
         <translation>Hazme Click!</translation>
     </message>

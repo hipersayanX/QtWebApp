@@ -22,9 +22,18 @@
 #include <QTranslator>
 #include <QUrl>
 #include <QWebChannel>
+#include <random>
 
 #include "webserver.h"
 #include "socketserver.h"
+
+struct RGBA
+{
+    quint8 r;
+    quint8 g;
+    quint8 b;
+    quint8 a;
+};
 
 struct Message
 {
@@ -44,6 +53,8 @@ class WebServerPrivate
 
         explicit WebServerPrivate(WebServer *self);
         static QString currentTime();
+        void handleConnection();
+        void dataReady(QTcpSocket *socket);
         inline void handleMessage(QTcpSocket *socket, const Message &message);
 };
 
@@ -54,8 +65,10 @@ WebServer::WebServer(QTranslator *translator, QObject *parent):
     this->d->m_translator = translator;
     QObject::connect(this,
                      &QTcpServer::newConnection,
-                     this,
-                     &WebServer::handleConnection);
+                     [this] () {
+                     this->d->handleConnection();
+    });
+
     this->d->m_socketServer.channel()->registerObject("WebServer", this);
     this->d->m_socketServer.listen();
     this->listen();
@@ -102,55 +115,25 @@ QString WebServer::tr(const QString &context,
     return translated;
 }
 
-void WebServer::handleConnection()
+QByteArray WebServer::readFrame(int width, int height)
 {
-    auto socket = this->nextPendingConnection();
-    connect(socket,
-            &QAbstractSocket::disconnected,
-            socket,
-            &QObject::deleteLater);
-    connect(socket,
-            &QAbstractSocket::readyRead,
-            this,
-            &WebServer::dataReady);
-}
+    QByteArray data(4 * width * height, Qt::Uninitialized);
+    static std::uniform_int_distribution<quint8> distribution(std::numeric_limits<quint8>::min(),
+                                                              std::numeric_limits<quint8>::max());
+    static std::default_random_engine engine;
 
-void WebServer::dataReady()
-{
-    auto socket = reinterpret_cast<QTcpSocket *>(sender());
-    Message message;
+    for (int y = 0; y < height; y++) {
+        auto line = reinterpret_cast<RGBA *>(data.data()) + y * width;
 
-    for (int i = 0; !socket->atEnd(); i++) {
-        auto line = socket->readLine().trimmed();
-
-        if (line.isEmpty()) {
-            break;
-        } else if (i == 0) {
-            auto parts = line.split(' ');
-            message.method = parts.value(0);
-            message.path = parts.value(1);
-            message.protocol = parts.value(2);
-        } else {
-            auto index = line.indexOf(':');
-            auto key = line.left(index).trimmed();
-            auto value = line.right(line.size() - index - 1).trimmed();
-            message.headers[key] = value;
+        for (int x = 0; x < width; x++) {
+            line[x].r = distribution(engine);
+            line[x].g = distribution(engine);
+            line[x].b = distribution(engine);
+            line[x].a = 255;
         }
     }
 
-    auto dataSize = message.headers.value("Content-Length").toLongLong();
-
-    if (dataSize > 0)
-        message.data = socket->read(dataSize);
-
-    qDebug() << message.method << message.path << message.protocol;
-    qDebug() << message.headers;
-    qDebug() << message.data;
-    qDebug();
-
-    this->d->handleMessage(socket, message);
-    socket->disconnectFromHost();
-    socket->waitForDisconnected();
+    return data.toBase64();
 }
 
 WebServerPrivate::WebServerPrivate(WebServer *self):
@@ -198,6 +181,57 @@ QString WebServerPrivate::currentTime()
             .arg(month)
             .arg(dateTime.date().year())
             .arg(dateTime.toString("HH:mm:ss"));
+}
+
+void WebServerPrivate::handleConnection()
+{
+    auto socket = self->nextPendingConnection();
+    QObject::connect(socket,
+            &QAbstractSocket::disconnected,
+            socket,
+            &QObject::deleteLater);
+    QObject::connect(socket,
+                     &QAbstractSocket::readyRead,
+                     [this, socket] () {
+        this->dataReady(socket);
+    });
+}
+
+void WebServerPrivate::dataReady(QTcpSocket *socket)
+{
+    Message message;
+
+    for (int i = 0; !socket->atEnd(); i++) {
+        auto line = socket->readLine().trimmed();
+
+        if (line.isEmpty()) {
+            break;
+        } else if (i == 0) {
+            auto parts = line.split(' ');
+            message.method = parts.value(0);
+            message.path = parts.value(1);
+            message.protocol = parts.value(2);
+        } else {
+            auto index = line.indexOf(':');
+            auto key = line.left(index).trimmed();
+            auto value = line.right(line.size() - index - 1).trimmed();
+            message.headers[key] = value;
+        }
+    }
+
+    auto dataSize = message.headers.value("Content-Length").toLongLong();
+
+    if (dataSize > 0)
+        message.data = socket->read(dataSize);
+
+    qDebug() << message.method << message.path << message.protocol;
+    qDebug() << message.headers;
+    qDebug() << message.data;
+    qDebug();
+
+    this->handleMessage(socket, message);
+    socket->disconnectFromHost();
+    socket->waitForDisconnected();
 }
 
 void WebServerPrivate::handleMessage(QTcpSocket *socket, const Message &message)

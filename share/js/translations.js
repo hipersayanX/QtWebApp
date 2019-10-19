@@ -36,6 +36,7 @@ class QString {
         return new QString(str)
     }
 }
+
 function qsTrInternal(context, sourceText, disambiguation, n, callback) {
     if (disambiguation instanceof Function) {
         callback = disambiguation
