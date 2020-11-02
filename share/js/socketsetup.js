@@ -34,28 +34,29 @@ window.onload = function() {
                 document.getElementById("pushButton").innerHTML = str
             })
 
-            window.setInterval(function () {
-                let width = window.canvas.width
-                let height = window.canvas.height
+            let t0 = performance.now();
+            let nframes = 0;
 
-                window.channel.objects.WebServer.readFrame(width,
-                                                           height,
-                                                           function(data) {
-                    let img = window.canvasCtx.createImageData(width, height)
-                    data = window.atob(data)
-
-                    for (let i = 0 ; i < data.length; i++)
-                       img.data[i] = data[i].charCodeAt(0)
-
-                    window.canvasCtx.putImageData(img,
-                                                  0,
-                                                  0,
-                                                  0,
-                                                  0,
-                                                  width,
-                                                  height)
-                })
-            }, 33)
+            window.channel.objects.WebServer.frameReady.connect(function() {
+                var img = new Image();
+                img.src = window.channel.objects.WebServer.url
+                        + "/video_frame.bmp?"
+                        + "w=" + window.canvas.width
+                        + "&h=" + window.canvas.height
+                        + "&q=-1"
+                        + "&t=" + (new Date()).getTime();
+                img.onload = function(){
+                    window.canvasCtx.drawImage(img,
+                                               0,
+                                               0,
+                                               window.canvas.width,
+                                               window.canvas.height);
+                    let tf = performance.now();
+                    nframes++;
+                    let fps = 1000 * nframes / (tf - t0);
+                    document.getElementById("frameRate").innerHTML = Math.round(fps);
+                }
+            })
         })
     }
 

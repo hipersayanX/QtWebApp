@@ -14,13 +14,17 @@
  * along with Webcamoid. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <QBuffer>
 #include <QDateTime>
 #include <QFile>
 #include <QFileInfo>
+#include <QImage>
 #include <QMimeDatabase>
 #include <QTcpSocket>
+#include <QTimer>
 #include <QTranslator>
 #include <QUrl>
+#include <QUrlQuery>
 #include <QWebChannel>
 #include <random>
 
@@ -50,8 +54,13 @@ class WebServerPrivate
         WebServer *self {nullptr};
         SocketServer m_socketServer;
         QTranslator *m_translator {nullptr};
+        QTimer m_timer;
 
         explicit WebServerPrivate(WebServer *self);
+        QByteArray readFrame(int width,
+                             int height,
+                             const QString &format="BMP",
+                             int quality=-1) const;
         static QString currentTime();
         void handleConnection();
         void dataReady(QTcpSocket *socket);
@@ -75,6 +84,14 @@ WebServer::WebServer(QTranslator *translator, QObject *parent):
 
     qDebug() << "Web server URL:" << this->url();
     qDebug() << "Socket server URL:" << this->d->m_socketServer.url();
+
+    QObject::connect(&this->d->m_timer,
+                     &QTimer::timeout,
+                     this,
+                     &WebServer::frameReady,
+                     Qt::DirectConnection);
+    this->d->m_timer.setInterval(33);
+    this->d->m_timer.start();
 }
 
 WebServer::~WebServer()
@@ -115,15 +132,29 @@ QString WebServer::tr(const QString &context,
     return translated;
 }
 
-QByteArray WebServer::readFrame(int width, int height)
+WebServerPrivate::WebServerPrivate(WebServer *self):
+    self(self)
 {
-    QByteArray data(4 * width * height, Qt::Uninitialized);
+
+}
+
+QByteArray WebServerPrivate::readFrame(int width,
+                                       int height,
+                                       const QString &format,
+                                       int quality) const
+{
+    QImage image(width, height, QImage::Format_ARGB32);
+
+    /* Filling the image with random noise is slow, you can disable this code to
+     * see the true frame rate.
+     */
+#if 1
     static std::uniform_int_distribution<quint8> distribution(std::numeric_limits<quint8>::min(),
                                                               std::numeric_limits<quint8>::max());
     static std::default_random_engine engine;
 
     for (int y = 0; y < height; y++) {
-        auto line = reinterpret_cast<RGBA *>(data.data()) + y * width;
+        auto line = reinterpret_cast<RGBA *>(image.scanLine(y));
 
         for (int x = 0; x < width; x++) {
             line[x].r = distribution(engine);
@@ -132,14 +163,14 @@ QByteArray WebServer::readFrame(int width, int height)
             line[x].a = 255;
         }
     }
+#endif
 
-    return data.toBase64();
-}
+    QByteArray data;
+    QBuffer buffer(&data);
+    buffer.open(QIODevice::WriteOnly);
+    image.save(&buffer, format.toStdString().c_str(), quality);
 
-WebServerPrivate::WebServerPrivate(WebServer *self):
-    self(self)
-{
-
+    return data;
 }
 
 QString WebServerPrivate::currentTime()
@@ -241,11 +272,11 @@ void WebServerPrivate::handleMessage(QTcpSocket *socket, const Message &message)
         {"/index.html", "/QtWebApp/share/html/index.html"},
     };
 
-    QUrl url;
-    url.setScheme("http");
-    url.setHost(self->serverAddress().toString());
-    url.setPort(self->serverPort());
-    url.setPath(redirect.value(message.path, message.path));
+    QUrl url("http://"
+             + self->serverAddress().toString()
+             + ":"
+             + self->serverPort()
+             + redirect.value(message.path, message.path));
 
     if (QFileInfo(':' + url.path()).isDir()) {
         if (!url.path().endsWith('/'))
@@ -263,7 +294,50 @@ void WebServerPrivate::handleMessage(QTcpSocket *socket, const Message &message)
     // Only allow to access files in the resource system.
     auto path = ":" + url.path();
 
-    if (QFile::exists(path)) {
+    if (QRegExp(":/video_frame.*",
+                Qt::CaseSensitive,
+                QRegExp::Wildcard).exactMatch(path)) {
+        auto query = QUrlQuery(url);
+        int width = 320;
+
+        if (query.hasQueryItem("w"))
+            width = query.queryItemValue("w").toUInt();
+
+        int height = 240;
+
+        if (query.hasQueryItem("h"))
+            height = query.queryItemValue("h").toUInt();
+
+        int quality = -1;
+
+        if (query.hasQueryItem("q"))
+            quality = query.queryItemValue("q").toInt();
+
+        auto suffix = QFileInfo(path).suffix();
+
+        if (suffix == "jpg")
+            suffix = "jpeg";
+        else if (suffix == "tif")
+            suffix = "tiff";
+
+        auto data = this->readFrame(width, height, suffix.toUpper(), quality);
+        socket->write("HTTP/1.1 200 Ok\r\n");
+        socket->write("Connection: keep-alive\r\n");
+        socket->write(QString("Content-Type: image/%1\r\n").arg(suffix.toLower()).toUtf8());
+        socket->write(QString("Content-Length: %1\r\n").arg(data.size()).toUtf8());
+        socket->write("Last-Modified: "
+                      + WebServerPrivate::currentTime().toUtf8()
+                      + "\r\n");
+        socket->write("Pragma-directive: no-cache\r\n");
+        socket->write("Cache-directive: no-cache\r\n");
+        socket->write("Cache-control: no-cache\r\n");
+        socket->write("Pragma: no-cache\r\n");
+        socket->write("Expires: 0\r\n");
+        socket->write("\r\n");
+
+        if (message.method != "HEAD")
+            socket->write(data);
+    } else if (QFile::exists(path)) {
         QFile file;
         file.setFileName(path);
 

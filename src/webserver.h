@@ -38,10 +38,12 @@ class WebServer: public QTcpServer
                                const QString &sourceText,
                                const QString &disambiguation={},
                                int n=-1);
-        Q_INVOKABLE QByteArray readFrame(int width, int height);
 
     private:
         WebServerPrivate *d;
+
+    signals:
+        void frameReady();
 };
 
 #endif // WEBSERVER_H
