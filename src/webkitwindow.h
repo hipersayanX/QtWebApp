@@ -1,5 +1,5 @@
 /* QtWebApp, webapp made with Qt.
- * Copyright (C) 2019  Gonzalo Exequiel Pedone
+ * Copyright (C) 2020  Gonzalo Exequiel Pedone
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,26 +15,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef CHANNELTRANSPORT_H
-#define CHANNELTRANSPORT_H
+#ifndef WEBKITWINDOW_H
+#define WEBKITWINDOW_H
 
-#include <QWebChannelAbstractTransport>
+#include "mainwindow.h"
 
-class ChannelTransportPrivate;
-class QWebSocket;
+class WebServer;
 
-class ChannelTransport: public QWebChannelAbstractTransport
+class WebkitWindow: public MainWindow
 {
     Q_OBJECT
 
     public:
-        explicit ChannelTransport(QWebSocket *socket=nullptr);
-        virtual ~ChannelTransport() Q_DECL_OVERRIDE;
+        explicit WebkitWindow(WebServer *server, QWidget *parent=nullptr);
+        ~WebkitWindow();
 
-        void sendMessage(const QJsonObject &message) Q_DECL_OVERRIDE;
-
-    private:
-        ChannelTransportPrivate *d;
+    protected:
+        void showEvent(QShowEvent *event);
 };
 
-#endif // CHANNELTRANSPORT_H
+#endif // WEBKITWINDOW_H

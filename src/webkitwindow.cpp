@@ -1,5 +1,5 @@
 /* QtWebApp, webapp made with Qt.
- * Copyright (C) 2019  Gonzalo Exequiel Pedone
+ * Copyright (C) 2020  Gonzalo Exequiel Pedone
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,37 +15,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef QT_WEBENGINEWIDGETS_LIB
-#include <QWebEngineView>
+#ifdef HAVE_QT5WEBKIT
+#include <QWebView>
 #endif
 
-#include "mainwindow.h"
+#include "webkitwindow.h"
 #include "ui_mainwindow.h"
-#include "webserver.h"
 
-MainWindow::MainWindow(WebServer *server,
-                       QWidget *parent):
-    QMainWindow(parent),
-    ui(new Ui::MainWindow)
+WebkitWindow::WebkitWindow(WebServer *server, QWidget *parent):
+    MainWindow(server, parent)
 {
-    this->m_url = server->url();
-    ui->setupUi(this);
 }
 
-MainWindow::~MainWindow()
+WebkitWindow::~WebkitWindow()
 {
-    delete ui;
 }
 
-void MainWindow::showEvent(QShowEvent *event)
+void WebkitWindow::showEvent(QShowEvent *event)
 {
-#ifdef QT_WEBENGINEWIDGETS_LIB
+#ifdef HAVE_QT5WEBKIT
     if (this->isVisible()) {
-        auto webView = ui->mainLayout->findChild<QWebEngineView *>("WebEngineView");
+        auto webView = ui->mainLayout->findChild<QWebView *>("WebView");
 
         if (!webView) {
-            webView = new QWebEngineView;
-            webView->setObjectName("WebEngineView");
+            webView = new QWebView;
+            webView->setObjectName("WebView");
             webView->setUrl(QUrl(this->m_url));
             ui->mainLayout->addWidget(webView);
         }

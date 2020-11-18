@@ -4,5 +4,6 @@
         <file>share/html/index.html</file>
         <file>share/js/socketsetup.js</file>
         <file>share/js/translations.js</file>
+        <file>share/css/reset.css</file>
     </qresource>
 </RCC>

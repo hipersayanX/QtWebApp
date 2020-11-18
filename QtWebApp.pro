@@ -1,17 +1,18 @@
 # QtWebApp, webapp made with Qt.
 # Copyright (C) 2019  Gonzalo Exequiel Pedone
 #
-# QtWebApp is free software: you can redistribute it and/or modify
+# This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation.
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-# QtWebApp is distributed in the hope that it will be useful,
+# This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with Webcamoid. If not, see <http://www.gnu.org/licenses/>.
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 QT += widgets qml quick websockets webchannel
 qtHaveModule(webengine): {
@@ -29,7 +30,8 @@ SOURCES = \
     src/qmlwindow.cpp \
     src/socketserver.cpp \
     src/webappwindow.cpp \
-    src/webserver.cpp
+    src/webserver.cpp \
+    src/webkitwindow.cpp
 
 HEADERS = \
     src/channeltransport.h \
@@ -37,10 +39,21 @@ HEADERS = \
     src/qmlwindow.h \
     src/socketserver.h \
     src/webappwindow.h \
-    src/webserver.h
+    src/webserver.h \
+    src/webkitwindow.h
 
 lupdate_only {
     SOURCES += $$files(share/qml/*.qml)
+}
+
+!isEmpty(USE_QT5WEBKIT) {
+    CONFIG += link_pkgconfig
+    PKGCONFIG += \
+        Qt5WebKit \
+        Qt5WebKitWidgets
+
+    QT += webkit webkitwidgets
+    DEFINES += HAVE_QT5WEBKIT
 }
 
 RESOURCES += \

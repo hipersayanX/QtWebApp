@@ -12,7 +12,7 @@
 <context>
     <name>main</name>
     <message>
-        <location filename="../qml/main.qml" line="25"/>
+        <location filename="../qml/main.qml" line="26"/>
         <source>QtWebApp</source>
         <translation type="unfinished"></translation>
     </message>
@@ -20,7 +20,7 @@
 <context>
     <name>socketsetup</name>
     <message>
-        <location filename="../js/socketsetup.js" line="33"/>
+        <location filename="../js/socketsetup.js" line="34"/>
         <source>Click Me!</source>
         <translation>Cliquez moi!</translation>
     </message>
